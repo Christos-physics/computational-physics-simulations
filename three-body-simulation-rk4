@@ -1,0 +1,99 @@
+import numpy as np
+import matplotlib.pyplot as plt
+m1,m2,m3=1.0,1.0,1.0
+def f(t, U):
+    x1, y1 = U[0], U[1]
+    x2, y2 = U[2], U[3]
+    x3, y3 = U[4], U[5]
+    vx1, vy1 = U[6], U[7]
+    vx2, vy2 = U[8], U[9]
+    vx3, vy3 = U[10], U[11]
+    epsilon = 0.05  # Μικρή παράμετρος εξομάλυνσης
+
+    r12 = np.sqrt((x1-x2)**2 + (y1-y2)**2 + epsilon**2)
+    r13 = np.sqrt((x1-x3)**2 + (y1-y3)**2 + epsilon**2)
+    r23 = np.sqrt((x2-x3)**2 + (y2-y3)**2 + epsilon**2)
+    
+    # Επειδή η απόσταση ij είναι ίση με τη ji (r12 = r21), δεν χρειάζεται να τις ξαναϋπολογίζεις!
+    
+    # Επιταχύνσεις Σώματος 1
+    ax1 = -m2*(x1-x2)/r12**3 - m3*(x1-x3)/r13**3
+    ay1 = -m2*(y1-y2)/r12**3 - m3*(y1-y3)/r13**3
+    
+    # Επιταχύνσεις Σώματος 2
+    ax2 = -m1*(x2-x1)/r12**3 - m3*(x2-x3)/r23**3  # m1 αντί για m2
+    ay2 = -m1*(y2-y1)/r12**3 - m3*(y2-y3)/r23**3  # r12 αντί για r22, m1 αντί για m2
+    
+    # Επιταχύνσεις Σώματος 3
+    ax3 = -m1*(x3-x1)/r13**3 - m2*(x3-x2)/r23**3  # m1 και m2 αντίστοιχα, r13 και r23
+    ay3 = -m1*(y3-y1)/r13**3 - m2*(y3-y2)/r23**3
+    return np.array([vx1, vy1, vx2, vy2, vx3, vy3, ax1, ay1, ax2, ay2, ax3, ay3])
+def rk4(t,U,f):
+    h=0.001
+    steps=10000
+    t_hist=[t]
+    x1_hist, y1_hist=[U[0]],[U[1]]
+    x2_hist, y2_hist=[U[2]],[U[3]]
+    x3_hist, y3_hist=[U[4]],[U[5]]
+    vx1_hist, vy1_hist = [U[6]],[U[7]]
+    vx2_hist, vy2_hist = [U[8]],[U[9]]
+    vx3_hist, vy3_hist = [U[10]],[U[11]]
+    for i in range(steps):
+        k1 = f(t, U)
+        k2 = f(t + h/2, U + (h/2) * k1)
+        k3 = f(t + h/2, U + (h/2) * k2)
+        k4 = f(t + h, U + h * k3)
+        U = U + (h / 6) * (k1 + 2*k2 + 2*k3 + k4)
+        t += h
+        t_hist.append(t)
+        # Αποθήκευση ιστορικού για τις θέσεις
+        x1_hist.append(U[0])
+        y1_hist.append(U[1])
+        x2_hist.append(U[2])
+        y2_hist.append(U[3])
+        x3_hist.append(U[4])
+        y3_hist.append(U[5])
+    
+        # Αποθήκευση ιστορικού για τις ταχύτητες
+        vx1_hist.append(U[6])
+        vy1_hist.append(U[7])
+        vx2_hist.append(U[8])
+        vy2_hist.append(U[9])
+        vx3_hist.append(U[10])
+        vy3_hist.append(U[11])
+    return t_hist, x1_hist, y1_hist, x2_hist, y2_hist, x3_hist, y3_hist, vx1_hist, vy1_hist, vx2_hist, vy2_hist, vx3_hist, vy3_hist
+# Θέσεις (x, y)
+x1, y1 = -1.0, 0.0
+x2, y2 =  1.0, 0.0
+x3, y3 =  0.0, 0.0
+
+# Ταχύτητες (vx, vy) - Πολύ συγκεκριμένες τιμές για να κλειδώσει
+vx1, vy1 = 0.306893,  0.125507
+vx2, vy2 = 0.306893,  0.125507
+vx3, vy3 = -2*vx1,   -2*vy1     # Εξισορρόπηση ορμής
+# Το τελικό σου διάνυσμα U
+U = np.array([x1, y1, x2, y2, x3, y3, vx1, vy1, vx2, vy2, vx3, vy3])
+t = 0
+s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12 = rk4(t, U, f)
+# 3. ΣΧΕΔΙΑΣΗ
+plt.figure(figsize=(15, 8))
+
+# Σχεδίαση των τροχιών
+plt.plot(s1, s2, label="Τροχιά Σώματος 1")
+plt.plot(s3, s4, label="Τροχιά Σώματος 2")
+plt.plot(s5, s6, label="Τροχιά Σώματος 3")
+
+# Προσθήκη Κύκλων (Markers) για την τρέχουσα θέση του κάθε σώματος
+body1 = plt.Circle((s1[-1], s2[-1]), 0.03, color='blue', label='Σώμα 1 (Θέση)')
+body2 = plt.Circle((s3[-1], s4[-1]), 0.03, color='orange', label='Σώμα 2 (Θέση)')
+body3 = plt.Circle((s5[-1], s6[-1]), 0.03, color='green', label='Σώμα 3 (Θέση)')
+
+# Εισαγωγή των κύκλων στο γράφημα
+plt.gca().add_artist(body1)
+plt.gca().add_artist(body2)
+plt.gca().add_artist(body3)
+
+plt.axis('equal')
+plt.grid(True)
+plt.legend()
+plt.show()
