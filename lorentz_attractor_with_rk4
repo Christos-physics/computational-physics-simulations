@@ -1,0 +1,48 @@
+import numpy as np
+import matplotlib.pyplot as plt
+σ=10.
+ρ=28.
+β=(8.0/3.0)
+def f(t,U):
+    x=U[0]
+    y=U[1]
+    z=U[2]
+    dx_dt=σ*(y-x)
+    dy_dt=x*(ρ-z)-y
+    dz_dt=x*y-β*z
+    return np.array([dx_dt,dy_dt,dz_dt])
+def rk4(t,U,f):
+    h=0.01
+    steps=5000
+    t_hist=[t]
+    x_hist=[U[0]]
+    y_hist=[U[1]]
+    z_hist=[U[2]]
+    for i in range(steps):
+        # Κλήση της σωστής συνάρτησης n_o
+        k1 = f(t, U)
+        k2 = f(t + h/2, U + (h/2) * k1)
+        k3 = f(t + h/2, U + (h/2) * k2)
+        k4 = f(t + h, U + h * k3)
+        
+        U = U + (h / 6) * (k1 + 2*k2 + 2*k3 + k4)
+        t += h
+        t_hist.append(t)
+        x_hist.append(U[0])
+        y_hist.append(U[1])
+        z_hist.append(U[2])
+    return t_hist, x_hist, y_hist, z_hist        
+U = np.array([1.0, 1.0, 1.00001])
+t=0
+s0,s1,s2,s3=rk4(t,U,f)
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(projection='3d')
+
+# s1 = x_hist, s2 = y_hist, s3 = z_hist
+ax.plot(s1, s2, s3, lw=0.5, color='blue')
+
+ax.set_xlabel("X Axis")
+ax.set_ylabel("Y Axis")
+ax.set_zlabel("Z Axis")
+ax.set_title("Lorenz Attractor")
+plt.show()  
