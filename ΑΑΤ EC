@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>Προσομοίωση Απλού Εκκρεμούς</title>
+  <style>
+  body {
+    margin: 0;
+    background-color: #21262d; /* Σκούρο γκρι/slate φόντο */
+    color: #ffffff;           /* Άσπρα γράμματα για τίτλους */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 20px;
+  }
+
+  canvas {
+    background-color: #ffffff; /* Άσπρο το κομμάτι της προσομοίωσης */
+    border: 1px solid #484f58;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); /* Έντονη σκιά για να ξεχωρίζει */
+  }
+
+  .info {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #8b949e;           /* Ανοιχτό γκρι για τις πληροφορίες κάτω */
+  }
+</style>
+</head>
+<body>
+
+  <h2>Προσομοίωση Απλού Εκκρεμούς (Euler-Cromer)</h2>
+  
+  <canvas id="simCanvas" width="600" height="600"></canvas>
+  
+  <div class="info">
+    Αρχική γωνία: 90° | Μήκος: 1.5m | Απόσβεση b: 0.2 | Ολοκλήρωση: Euler-Cromer
+  </div>
+
+  <script>
+    // 1. Ρύθμιση Canvas
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Το σημείο εξάρτησης (pivot) είναι η αρχή των αξόνων (0,0)
+    const pivotX = canvas.width / 2;
+    const pivotY = 150; 
+    const scale = 150; // Κλίμακα pixels/μέτρο
+
+    // 2. Παράμετροι Φυσικής & Αρχικές Συνθήκες
+    const g = 9.81;              // Επιτάχυνση βαρύτητας
+    const L = 1.5;               // Μήκος νήματος σε μέτρα
+    const dt = 0.02;             // Χρονικό βήμα
+    const b = 0.05;               // Συντελεστής απόσβεσης
+
+    let theta = Math.PI / 2;     // Αρχική γωνία = 90 μοίρες
+    let omega = 0.0;             // Αρχική γωνιακή ταχύτητα
+
+    // 3. Σχεδίαση Συστήματος Συντεταγμένων (XY - Μαθηματικοί Άξονες)
+    function drawAxes() {
+      ctx.save();
+      ctx.strokeStyle = '#d0d7de'; // Ελαφρύ γκρι
+      ctx.fillStyle = '#57606a';
+      ctx.lineWidth = 1;
+      ctx.font = '12px sans-serif';
+
+      // --- Άξονας X (Οριζόντιος) ---
+      ctx.beginPath();
+      ctx.moveTo(30, pivotY);
+      ctx.lineTo(canvas.width - 30, pivotY);
+      ctx.stroke();
+
+      // --- Άξονας Y (Κατακόρυφος) ---
+      ctx.beginPath();
+      ctx.moveTo(pivotX, 30);
+      ctx.lineTo(pivotX, canvas.height - 30);
+      ctx.stroke();
+
+      // --- Ονομασία Αξόνων & Αρχής (0,0) ---
+      ctx.fillText("x (m)", canvas.width - 25, pivotY + 15);
+      ctx.fillText("y (m)", pivotX + 10, 25); // Το Y δείχνει προς τα πάνω
+      ctx.fillText("(0,0)", pivotX - 35, pivotY - 10);
+
+      const tickSize = 5;
+      
+      // Ticks στον X (Δεξιά +x / Αριστερά -x)
+      for (let m = 1; m * scale < canvas.width / 2 - 30; m++) {
+        // Δεξιά (+x)
+        let xRight = pivotX + m * scale;
+        ctx.beginPath();
+        ctx.moveTo(xRight, pivotY - tickSize);
+        ctx.lineTo(xRight, pivotY + tickSize);
+        ctx.stroke();
+        ctx.fillText(`+${m}`, xRight - 5, pivotY + 20);
+
+        // Αριστερά (-x)
+        let xLeft = pivotX - m * scale;
+        ctx.beginPath();
+        ctx.moveTo(xLeft, pivotY - tickSize);
+        ctx.lineTo(xLeft, pivotY + tickSize);
+        ctx.stroke();
+        ctx.fillText(`-${m}`, xLeft - 8, pivotY + 20);
+      }
+
+      // Ticks στον Y (Προς τα ΚΑΤΩ -> Αρνητικά -y)
+      for (let m = 1; m * scale < canvas.height - pivotY - 30; m++) {
+        let yDown = pivotY + m * scale;
+        ctx.beginPath();
+        ctx.moveTo(pivotX - tickSize, yDown);
+        ctx.lineTo(pivotX + tickSize, yDown);
+        ctx.stroke();
+        ctx.fillText(`-${m}`, pivotX + 10, yDown + 4); // Πλέον γράφει -1, -2...
+      }
+
+      // Ticks στον Y (Προς τα ΠΑΝΩ -> Θετικά +y)
+      for (let m = 1; m * scale < pivotY - 30; m++) {
+        let yUp = pivotY - m * scale;
+        ctx.beginPath();
+        ctx.moveTo(pivotX - tickSize, yUp);
+        ctx.lineTo(pivotX + tickSize, yUp);
+        ctx.stroke();
+        ctx.fillText(`+${m}`, pivotX + 10, yUp + 4);
+      }
+
+      ctx.restore();
+    }
+
+    // 4. Βήμα Ολοκλήρωσης Euler-Cromer
+    function eulerCromerStep() {
+      let alpha = -(g / L) * Math.sin(theta) - omega * b;
+
+      // ΒΗΜΑ 1: Ενημέρωση γωνιακής ταχύτητας
+      omega = omega + alpha * dt;
+
+      // ΒΗΜΑ 2: Ενημέρωση γωνίας με τη ΝΕΑ ταχύτητα
+      theta = theta + omega * dt;
+    }
+
+    // 5. Loop Σχεδίασης
+    function draw() {
+      // Υπολογισμός φυσικής
+      eulerCromerStep();
+
+      // Καθαρισμός οθόνης
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // A. Σχεδίαση Αξόνων ΠΙΣΩ από το εκκρεμές
+      drawAxes();
+
+      // B. Μετατροπές συντεταγμένων:
+      // x = pivotX + L * sin(theta)
+      // y = pivotY + L * cos(theta) (Στη ζωγραφική του Canvas το 'κάτω' είναι αύξηση Y)
+      let bobX = pivotX + L * scale * Math.sin(theta);
+      let bobY = pivotY + L * scale * Math.cos(theta);
+
+      // --- C. Σχεδίαση Νήματος ---
+      ctx.beginPath();
+      ctx.moveTo(pivotX, pivotY);
+      ctx.lineTo(bobX, bobY);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // --- D. Σχεδίαση Σημείου Εξάρτησης ---
+      ctx.beginPath();
+      ctx.arc(pivotX, pivotY, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#333333';
+      ctx.fill();
+
+      // --- E. Σχεδίαση Μάζας Εκκρεμούς ---
+      ctx.beginPath();
+      ctx.arc(bobX, bobY, 15, 0, 2 * Math.PI);
+      ctx.fillStyle = '#0969da';
+      ctx.fill();
+
+      requestAnimationFrame(draw);
+    }
+
+    // Εκκίνηση
+    draw();
+  </script>
+
+</body>
+</html>
