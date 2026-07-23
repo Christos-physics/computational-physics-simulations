@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>Τροχιά Kepler με Euler-Cromer</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #21262d;
+      color: #f0f6fc;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+    }
+    canvas {
+      background-color: #ffffff;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+    }
+    .info {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #8b949e;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Προσομοίωση Τροχιάς (Μέθοδος Euler-Cromer)</h2>
+  
+  <!-- Το παράθυρο σχεδίασης -->
+  <canvas id="simCanvas" width="600" height="600"></canvas>
+  
+  <div class="info">
+    Κίτρινο: Ήλιος (0,0) | Μπλε: Δορυφόρος / Πλανήτης
+  </div>
+
+  <script>
+    // 1. Αρχικοποίηση Canvas
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Το κέντρο του canvas (600x600) είναι το σημείο (300, 300)
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const scale = 150; // Κλίμακα για να φαίνεται σωστά η τροχιά (pixels ανά μονάδα)
+
+    // 2. Παράμετροι Φυσικής & Αρχικές Συνθήκες (Όπως στην Python)
+    const GM = 2.0;     // Βαρυτική σταθερά x Μάζα Ήλιου
+    const dt = 0.001;   // Χρονικό βήμα (h)
+
+    // Διαάνυσμα κατάστασης U = [x, y, vx, vy]
+    let x = 0.706;
+    let y = -0.204;
+    let vx = 1.178;
+    let vy = 0.549;
+
+    // Πίνακας για την αποθήκευση της τροχιάς (ίχνος)
+    let trajectory = [];
+
+    // 3. Βήμα Euler-Cromer (Η καρδιά του αλγορίθμου)
+    function eulerCromerStep() {
+      // Απόσταση r = sqrt(x^2 + y^2)
+      let r = Math.sqrt(x * x + y * y);
+
+      // Υπολογισμός Επιταχύνσεων ax, ay
+      let ax = -GM*x / Math.pow(r, 3);
+      let ay = -GM*y / Math.pow(r, 3);
+
+      // ΒΗΜΑ 1: Ενημέρωση Ταχυτήτων
+      vx = vx + dt * ax;
+      vy = vy + dt * ay;
+
+      // ΒΗΜΑ 2: Ενημέρωση Θέσεων με τις ΝΕΕΣ ταχύτητες (Cromer)
+      x = x + dt * vx;
+      y = y + dt * vy;
+
+      // Αποθήκευση θέσης στο ίχνος
+      trajectory.push({ x: x, y: y });
+      
+      // Κρατάμε μόνο τα τελευταία 1000 σημεία για να μην βαρύνει η μνήμη
+      if (trajectory.length > 5500) {
+        trajectory.shift();
+      }
+    }
+
+    // 4. Συνάρτηση Σχεδίασης (Loop Animation)
+    function draw() {
+      // Εκτέλεση μερικών βημάτων υπολογισμού ανά frame για ομαλή κίνηση
+      for (let i = 0; i < 5; i++) {
+        eulerCromerStep();
+      }
+
+      // Καθαρισμός οθόνης
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // --- A. Σχεδίαση Τροχιάς (Ίχνος) ---
+      ctx.beginPath();
+      ctx.strokeStyle = '#238636';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < trajectory.length; i++) {
+        // Μετατροπή των φυσικών συντεταγμένων (x, y) σε pixels της οθόνης
+        let px = centerX + trajectory[i].x * scale;
+        let py = centerY - trajectory[i].y * scale; // Το y στην οθόνη είναι ανάποδα
+
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      // --- B. Σχεδίαση Ήλιου στο (0,0) ---
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = '#e3b341';
+      ctx.fill();
+
+      // --- C. Σχεδίαση Δορυφόρου/Πλανήτη ---
+      let planetPx = centerX + x * scale;
+      let planetPy = centerY - y * scale;
+
+      ctx.beginPath();
+      ctx.arc(planetPx, planetPy, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#58a6ff';
+      ctx.fill();
+
+      // Κλήση του επόμενου frame
+      requestAnimationFrame(draw);
+    }
+
+    // Εκκίνηση της προσομοίωσης
+    draw();
+  </script>
+
+</body>
+</html>
